@@ -12,6 +12,8 @@ from tools import periodic_generator, pg_var_error_rate
 import itertools
 
 batch_size = 50
+# During early development and previous version of Tensorflow, there are some issues about handling varying batch size.
+# Maybe it is not necessary as a global variable now.
 
 conv_num_filters = 200
 
@@ -28,7 +30,7 @@ def parity(in_tensor, block_size):
 
     parity_result = tf.mod(tf.round(tf.nn.conv2d(in_tensor, parity_filter,
                                                  strides=[1, block_size, block_size, 1], padding='VALID')), 2)
-    # Likely don't need tf.round .
+    # Likely don't need tf.round
 
     return parity_result
 
@@ -105,7 +107,9 @@ def remove_entropy(bpo, prev_parity, logi_plhd):
         and updated_logi_plhd is the updated logi_plhd after post-processing
     """
 
-    bpo_g0 = tf.to_float(bpo > 0)  # Convert to float so can be added to p0
+    bpo_g0 = tf.to_float(bpo > 0)
+    # Flag the location where log p/(1-p) > 0, in other words p > 0.5
+    # Convert to float so can be added to p0
 
     bpo_nega = -tf.abs(bpo)  # we set it <0 for consistency with bp_net input
 
@@ -115,15 +119,20 @@ def remove_entropy(bpo, prev_parity, logi_plhd):
     # because we only trained bp_net with a certain range of error rates
 
     p0 = parity(prev_parity, 2)
+    # computing syndrome of the coarse-grained lattice
 
     p0 = p0 + bpo_g0[:, :, :, 0:1] + bpo_g0[:, :, :, 1:2] + tf.manip.roll(bpo_g0[:, :, :, 0:1], -1,
                                                                           axis=2) + tf.manip.roll(
         bpo_g0[:, :, :, 1:2], -1, axis=1)
     p0 = tf.mod(p0, 2)
+    # Update p0 according to applying X correction on qubits where p > 0.5
+
     bsum0 = tf.reduce_sum(bpo_g0[:, :, 0, 0], axis=1)
     bsum1 = tf.reduce_sum(bpo_g0[:, 0, :, 1], axis=1)
     bsum = tf.stack([bsum0, bsum1], axis=-1)
     bsum = bsum + logi_plhd
+    # Update logi_plhd according to applying X correction on qubits where p > 0.5
+
     return tf.concat([p0, bpo_nega], axis=-1), tf.mod(bsum, 2)
 
 
@@ -138,6 +147,9 @@ class ModelBP:
         """
 
         L = 16
+        # Because bp_net only does 4 rounds of communication between neighbouring unit cells, it seems fine to do the
+        #  training on L=16 lattice
+
         self.synd_placeholder = tf.placeholder(tf.float32, shape=[None, L, L, 3])
         self.bp_plhd = tf.placeholder(tf.float32, shape=[None, L // 2, L // 2, 2])
 
@@ -164,14 +176,23 @@ class BatchIteratorBP:
     """
 
     def __init__(self, path='bp_training_vp_comb.pkl'):
+        """
+        :param path: location of the training data
+        """
         self.test_size = 200
         with open(path, 'rb') as f:
             data = pickle.load(f)
+
         self.anyon_perror = np.concatenate([data['anyons'], np.log10(data['p_error'])], axis=-1)
+        # data['anyons'] contains syndrome, data['p_error'] contains error rate of qubits.
+
         bp_limited = np.clip(data['bp'], 1e-10, 1 - 1e-10)
+        # data['bp'] contains the outputs from the belief propagation algorithm
+        # it is clipped so we can compute log10 without issues caused by numerical accuracy
+
         self.bp = np.log10(bp_limited) - np.log10(1 - bp_limited)
         self.batch_start = 0
-        self.num_data = len(self.anyon_perror) - self.test_size  # 1000 is the test set
+        self.num_data = self.anyon_perror.shape[0] - self.test_size
 
     def test_batch(self):
         anyons_batch = self.anyon_perror[self.num_data:, :, :, :]
@@ -298,6 +319,7 @@ class ModelVariableRate:
     """
     Container for decoder network that trains additional site-dependent 'error rate' variables
     """
+
     def __init__(self, sess, L, p):
         """
         :param sess: tf.Session()
@@ -311,7 +333,7 @@ class ModelVariableRate:
         self.synd_placeholder = tf.placeholder(tf.float32, shape=[None, L, L, 1])
         batch_size_tensor = tf.shape(self.synd_placeholder)[0]
         p_mat = np.ones((1, L, L, 2)) * np.log10(p / (1 - p))
-        var_error_rate = tf.Variable(p_mat, name='error_rate', dtype=tf.float32) # the "error rate" variable
+        var_error_rate = tf.Variable(p_mat, name='error_rate', dtype=tf.float32)  # the "error rate" variable
         tiled_error_rate = tf.tile(var_error_rate, tf.stack([batch_size_tensor, 1, 1, 1]))
         synd_perror = tf.concat([self.synd_placeholder, tiled_error_rate], axis=-1)
 
@@ -379,4 +401,3 @@ def training_var_rate(m: ModelVariableRate, sess, trainer, num_batch, L=16):
         if i % 20 == 0:
             print(
                 sess.run([m.loss_logical, m.accu_logical], feed_dict={m.synd_placeholder: a, m.logical_placeholder: l}))
-
