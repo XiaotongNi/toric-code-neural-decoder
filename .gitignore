@@ -1,0 +1,4 @@
+
+*.xml
+.idea/toric-code-neural-decoder.iml
+__pycache__/tools.cpython-36.pyc

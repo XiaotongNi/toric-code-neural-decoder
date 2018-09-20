@@ -2,7 +2,7 @@ from typing import List, Any
 
 import tensorflow as tf
 import numpy as np
-import os
+import warnings
 
 import pickle
 
@@ -160,10 +160,10 @@ class ModelBP:
             if update_ops:
                 updates = tf.group(*update_ops)
                 rn_block = control_flow_ops.with_dependencies([updates], rn_block)
+            # These codes are related to layers.batch_normalization, see Tensorflow documentation
 
         self.loss = tf.losses.mean_squared_error(self.bp_plhd, rn_block)
         self.adam = tf.train.AdamOptimizer(7e-4).minimize(self.loss)
-        self.output = rn_block
 
         self.saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
@@ -240,10 +240,13 @@ class Model:
     def __init__(self, sess, L):
         """
         :param sess: tf.Session()
-        :param L: lattice size of toric code, limited to 16,32,64
+        :param L: lattice size of toric code, limited to 16,32,64. Ignore this if your computer is powerful enough
         """
-        if L not in [16, 32, 64]:
+        if (np.log2(L).is_integer() == False) or L < 4:
             raise ValueError('unsupported L value')
+        if L > 64:
+            warnings.warn("Can be slow.")
+
         num_renorm_block = int(np.log2(L)) - 1
 
         self.synd_placeholder = tf.placeholder(tf.float32, shape=[None, L, L, 3])
@@ -256,6 +259,7 @@ class Model:
                                                         self.logical_placeholder)
 
         for i in range(2, num_renorm_block + 1):
+            # The indexing is a bit confusing right now, as it start with rn_block1
             with tf.variable_scope("rn_block" + str(i)):
                 rn_block_output = bp_net(rn_processed, training=False)
 
@@ -302,8 +306,10 @@ def training_glob(m: Model, sess, train_op, num_batch, L=16, p=0.08):
     :param p: error probability of training data
     :return: None
     """
-    batch_gen = periodic_generator(L, p, 50, L)
-    p_mat = np.ones((50, L, L, 2)) * np.log10(p / (1 - p))
+    batch_gen = periodic_generator(L, p, batch_size, L)
+    p_mat = np.ones((batch_size, L, L, 2)) * np.log10(p / (1 - p))
+    # p_mat contains the error rates, although here it is constant, it is needed by the bp_net
+
     for i in range(num_batch):
         a, l = next(batch_gen)
         l = l.squeeze()
@@ -323,11 +329,14 @@ class ModelVariableRate:
     def __init__(self, sess, L, p):
         """
         :param sess: tf.Session()
-        :param L: toric code size, limited to 16,32,64
+        :param L: toric code size, limited to 2^N for N>2
         :param p: how we initialize the 'error rate' variables
         """
-        if L not in [16, 32, 64]:
+        if (np.log2(L).is_integer() is False) or L < 4:
             raise ValueError('unsupported L value')
+        if L > 64:
+            warnings.warn("Can be slow.")
+
         num_renorm_block = int(np.log2(L)) - 1
 
         self.synd_placeholder = tf.placeholder(tf.float32, shape=[None, L, L, 1])
