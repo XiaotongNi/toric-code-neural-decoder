@@ -400,13 +400,23 @@ class ModelVariableRate:
         sess.run(tf.global_variables_initializer())
 
 
-def training_var_rate(m: ModelVariableRate, sess, trainer, num_batch, L=16):
-    batch_gen = pg_var_error_rate(L, 50, L)
+def training_var_rate(m: ModelVariableRate, sess, train_op, num_batch, L=16):
+    """
+    Script for training ModelVariableRate
+    :param m: instance of ModelVariableRate
+    :param sess: tf.Session()
+    :param train_op: Only m.rn_block1_trainer is needed.
+    :param num_batch:
+    :param L:
+    :return:
+    """
+    batch_gen = pg_var_error_rate(L, batch_size, L)
     for i in range(num_batch):
         a, l, p = next(batch_gen)
         l = l.squeeze()
-        sess.run(trainer, feed_dict={m.synd_placeholder: a, m.logical_placeholder: l})
+
+        o = sess.run([m.loss_logical, m.accu_logical, train_op],
+                     feed_dict={m.synd_placeholder: a, m.logical_placeholder: l})
 
         if i % 20 == 0:
-            print(
-                sess.run([m.loss_logical, m.accu_logical], feed_dict={m.synd_placeholder: a, m.logical_placeholder: l}))
+            print(o[0], o[1])
