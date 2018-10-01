@@ -1,0 +1,3 @@
+model_checkpoint_path: "."
+all_model_checkpoint_paths: "..\\no_glob_training\\all_blocks_009_L16"
+all_model_checkpoint_paths: "."
