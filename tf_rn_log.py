@@ -255,7 +255,7 @@ class Model:
         with tf.variable_scope("rn_block1"):
             rn_block_output = bp_net(self.synd_placeholder, training=False)
 
-            rn_processed, logi_updated = remove_entropy(rn_block_output, self.synd_placeholder,
+            rn_processed, logi_updated = remove_entropy(rn_block_output, self.synd_placeholder[:, :, :, 0:1],
                                                         self.logical_placeholder)
 
         for i in range(2, num_renorm_block + 1):
