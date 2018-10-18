@@ -37,7 +37,7 @@ cpdef np.float64_t [:,:] cell_inf_vp(np.int8_t [:] cell_synd, np.float64_t [:,:]
     inference inside a cell
     :param cell_synd: 4 parity check results, see above for layout
     :param boundary_state: incoming messages. See code below for ordering
-    :param og_boundary_state: joint probability distribution for each 2-qubit boundary.
+    :param og_boundary_state: joint probability distribution for each 2-qubit boundary, computed using "physical error rates".
     :param inner_state: error rates for qubits not on the boundary
     :return: all messages this unit cell sends out.
     """
@@ -87,6 +87,15 @@ cpdef np.float64_t [:,:] cell_inf_vp(np.int8_t [:] cell_synd, np.float64_t [:,:]
 
 
 def bp_vp(np.int8_t[:,:] synd, np.float64_t[:,:,:] edge_prior, int bp_steps):
+    """
+    Implementing belief propagation
+    :param synd: The whole syndrome as a 2-d array
+    :param edge_prior: p/(1-p) of each qubits, has a shape [L,L,2]
+    :param bp_steps: number of message-passing rounds
+    :return: error probablity corresponding to the coarse-grained edges.
+    """
+
+    # Define variables
     cdef int latt_size = 16
     cdef int half_latt_size = latt_size//2
     cdef Py_ssize_t i, j, k, i_n, i_s, j_w, j_e, e1, e2, i2_period, j2_period
@@ -94,9 +103,14 @@ def bp_vp(np.int8_t[:,:] synd, np.float64_t[:,:,:] edge_prior, int bp_steps):
 
     cdef np.float64_t[:,:,:,:] boundary_state = np.ones((half_latt_size, half_latt_size, 4, 4))
     cdef np.float64_t[:,:,:,:] og_boundary_state = np.ones((half_latt_size, half_latt_size, 4, 4))
+    # boundary states for all unit cells. First two indices label the unit cells,
+    # the last two indices has the same meaning as in cell_inf_vp()
+
     cdef np.float64_t[:,:,:] cell_inner_state = np.ones((half_latt_size, half_latt_size, 4))
+
+    # Initializing boundary_state and cell_inner state
     for i in range(half_latt_size):
-        for j in range(half_latt_size):
+        for j in range(half_latt_size): # looping through unit cells
             i2_period = (2*i + 2) % latt_size
             j2_period = (2*j + 2) % latt_size
             for e1 in range(2):
@@ -118,7 +132,7 @@ def bp_vp(np.int8_t[:,:] synd, np.float64_t[:,:,:] edge_prior, int bp_steps):
 
     cdef np.float64_t[:,:,:] edge_prob = np.zeros((half_latt_size, half_latt_size, 2))
 
-    for k in range(bp_steps):
+    for k in range(bp_steps): # looping of message passing rounds
         for i in range(half_latt_size):
             for j in range(half_latt_size):
                 i_n = (i - 1) % half_latt_size
