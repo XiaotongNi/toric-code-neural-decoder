@@ -254,6 +254,11 @@ class Model:
 
         with tf.variable_scope("rn_block1"):
             rn_block_output = bp_net(self.synd_placeholder, training=False)
+            # Here setting training to False is setting batch normalization to evaluation mode.
+            # Roughly speaking, in the evaluation mode, it creates trainable variable which used as means and variances
+            # in batch_normalization layer. When we load from training checkpoints, means and variances variables
+            # are then initialized by the moving means and moving variances estimated in training.
+            # It is not clear to me which choice is better, training=True or training=False.
 
             rn_processed, logi_updated = remove_entropy(rn_block_output, self.synd_placeholder[:, :, :, 0:1],
                                                         self.logical_placeholder)
@@ -266,6 +271,7 @@ class Model:
                 rn_processed, logi_updated = remove_entropy(rn_block_output, rn_processed[:, :, :, 0:1], logi_updated)
 
         # Constructing a list of dictionary for loading pre-trained belief propagation network
+        # See Tensorflow documentation for the mechanism of loading variables.
         dict_rnblock = []
         for i in range(1, num_renorm_block + 1):
             dict_rnblock.append({})
@@ -285,6 +291,9 @@ class Model:
 
         self.loss_logical = tf.losses.sigmoid_cross_entropy(logi_updated, dl)
         self.dense_block_trainer = tf.train.AdamOptimizer().minimize(self.loss_logical, var_list=dense_block_vars)
+        # Trainer for only the variables in the "dense_block" variable scope
+        # Corresponding to blue circle 1 in figure 3 of the paper.
+
         self.global_trainer = tf.train.AdamOptimizer(7e-6).minimize(self.loss_logical)
         self.accu_logical = tf.contrib.metrics.accuracy((dl > 0), tf.cast(logi_updated, tf.bool))
 
@@ -297,7 +306,7 @@ class Model:
 
 def training_glob(m: Model, sess, train_op, num_batch, L=16, p=0.08):
     """
-    Training Model by applying train_op
+    Training Model by applying train_op, which can be m.dense_block_trainer or m.global_trainer
     :param m: instance of Model
     :param sess: tf.Session()
     :param train_op: training operation: m.dense_block_trainer or m.global_trainer
@@ -342,8 +351,12 @@ class ModelVariableRate:
         self.synd_placeholder = tf.placeholder(tf.float32, shape=[None, L, L, 1])
         batch_size_tensor = tf.shape(self.synd_placeholder)[0]
         p_mat = np.ones((1, L, L, 2)) * np.log10(p / (1 - p))
-        var_error_rate = tf.Variable(p_mat, name='error_rate', dtype=tf.float32)  # the "error rate" variable
+        var_error_rate = tf.Variable(p_mat, name='error_rate', dtype=tf.float32)
+        # the "error rate" variable to be trained
+
         tiled_error_rate = tf.tile(var_error_rate, tf.stack([batch_size_tensor, 1, 1, 1]))
+        # tile the var_error_rate to have the same batch size
+
         synd_perror = tf.concat([self.synd_placeholder, tiled_error_rate], axis=-1)
 
         self.logical_placeholder = tf.placeholder(tf.float32, shape=[None, 2])
