@@ -1,5 +1,7 @@
 # toric-code-neural-decoder
 
+The corresponding preprint: https://arxiv.org/abs/1809.06640
+
 Scripts for 2 basic examples can be running on
 https://colab.research.google.com/drive/1l3q35FFoxzPRNs_MMxD1FQJean5OwLsA
   1. Evaluating a trained model for d=16 toric code
