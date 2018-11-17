@@ -1,8 +1,9 @@
 # toric-code-neural-decoder
 
 The corresponding preprint: https://arxiv.org/abs/1809.06640
+A very brief description of toric code can be found [here](https://xiaotongni.github.io/2018/11/16/classical-description-toric-code/). It's mainly for people without a background of quantum information.
 
-Scripts for 2 basic examples can be running on
+A script for 2 basic examples can be running on
 https://colab.research.google.com/drive/1l3q35FFoxzPRNs_MMxD1FQJean5OwLsA
   1. Evaluating a trained model for d=16 toric code
   2. Training of the dense layers and global training for d=64 toric code
