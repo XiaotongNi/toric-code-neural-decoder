@@ -1,6 +1,6 @@
 # toric-code-neural-decoder
 
-The corresponding preprint: https://arxiv.org/abs/1809.06640
+The corresponding preprint: https://arxiv.org/abs/1809.06640.
 A very brief description of toric code can be found [here](https://xiaotongni.github.io/2018/11/16/classical-description-toric-code/). It's mainly for people without a background of quantum information.
 
 A script for 2 basic examples can be running on
