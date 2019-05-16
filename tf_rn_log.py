@@ -23,7 +23,7 @@ def parity(in_tensor, block_size):
     Divide the input tensor into block_size * block_size blocks, and compute the parity of each block.
     :param in_tensor: A tensor which has shape [batch_size, l, l, 1]
     :param block_size: size of block
-    :return: A tensor with shape [batch_size, l/2, l/2, 1]
+    :return: A tensor with shape [batch_size, l/block_size, l/block_size, 1]
     """
 
     parity_filter = tf.constant(1.0, shape=[block_size, block_size, 1, 1])
